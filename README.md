@@ -4,7 +4,6 @@ The Starlight Intelligence System (SIS) powers reasoning, memory storage, and ag
 
 SIS enables long-term reasoning, daily thought logging, and AI agent memory. Arcanea provides a universe and lore memory layer that connects to SIS through custom loaders.
 
-This repository contains minimal but functional Python modules illustrating how agents can log reasoning traces and load external lore. Tests demonstrate that these modules integrate correctly.
 
 ## Repository Structure
 - **starlight-notes/** - Markdown-based reasoning logs.
@@ -14,12 +13,3 @@ This repository contains minimal but functional Python modules illustrating how 
 - **core/** - Memory engine, reasoning trace builder, and session controller.
 
 SIS is the backend reasoning and publishing system used by Arcanea and future applications.
-
-## Development
-
-Install dependencies (if any) and run tests with `pytest`:
-
-```bash
-pip install -r requirements.txt  # none yet, but placeholder for future deps
-pytest -q
-```
