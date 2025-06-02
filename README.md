@@ -12,3 +12,10 @@ SIS enables long-term reasoning, daily thought logging, and AI agent memory. Arc
 - **core/** - Memory engine, reasoning trace builder, and session controller.
 
 SIS is the backend reasoning and publishing system used by Arcanea and future applications.
+
+## Running Tests
+Use `pytest` to run the test suite:
+
+```bash
+pytest
+```
