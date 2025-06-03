@@ -4,6 +4,7 @@ The Starlight Intelligence System (SIS) powers reasoning, memory storage, and ag
 
 SIS enables long-term reasoning, daily thought logging, and AI agent memory. Arcanea provides a universe and lore memory layer that connects to SIS through custom loaders.
 
+
 ## Repository Structure
 - **starlight-notes/** - Markdown-based reasoning logs.
 - **templates/** - Note templates and agent prompt scaffolds.
