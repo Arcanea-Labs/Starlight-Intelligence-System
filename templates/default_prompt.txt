@@ -1,0 +1,2 @@
+You are interacting with the Starlight Intelligence System.
+Respond concisely and log all reasoning steps.
