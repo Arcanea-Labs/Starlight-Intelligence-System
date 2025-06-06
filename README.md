@@ -1,6 +1,6 @@
 # Starlight Intelligence System
 
-The Starlight Intelligence System (SIS) powers reasoning, memory storage, and agent orchestration for World building projects like the Arcaea projects It acts as the brain and memory core that you can use to leverage the insights of your reasoning with LLMs and ensure you build a system and create value through your thought. 
+The Starlight Intelligence System (SIS) powers reasoning, memory storage, and agent orchestration for World building projects like the Arcanea projects It acts as the brain and memory core that you can use to leverage the insights of your reasoning with LLMs and ensure you build a system and create value through your thought. 
 
 
 SIS enables long-term reasoning, daily thought logging, and AI agent memory. Arcanea provides a universe and lore memory layer that connects to SIS through custom loaders.
