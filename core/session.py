@@ -3,20 +3,24 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import List, Iterable
+from typing import List, Iterable, Optional
 
-from .memory import MemoryStore
+from .memory import MemoryStore, MemoryEntry
 
 @dataclass
 class Session:
     """Represents a reasoning session."""
 
-    store: MemoryStore = field(default_factory=MemoryStore)
+    store: MemoryStore
 
-    def log(self, text: str) -> None:
+    def __init__(self, store_path: str = ".chroma"):
+        self.store = MemoryStore(db_path=store_path)
+
+    def log(self, text: str, entry_type: str, source: Optional[str] = None) -> None:
         """Log text to the session's memory store."""
-        self.store.add(text)
+        entry = MemoryEntry(text=text, entry_type=entry_type, source=source)
+        self.store.add(entry)
 
-    def trace(self) -> Iterable[str]:
-        """Return an iterator over the session reasoning trace."""
+    def trace(self) -> List[MemoryEntry]:
+        """Return the session reasoning trace."""
         return self.store.get_all()
