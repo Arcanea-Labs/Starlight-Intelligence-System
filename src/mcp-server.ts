@@ -17,8 +17,13 @@ import type { TemporalMeta, ContradictionRecord } from './types.js';
 import { getPackageVersion } from './version.js';
 import { seedVaults, vaultsAreEmpty } from './seed.js';
 import { GoalOrchestrator } from './goal.js';
+import { telemetry } from './telemetry/index.js';
 import { continuityStatus, importContinuityBundle } from './continuity-import.js';
 import { RetrievalIndex } from './retrieval.js';
+import { SovereignBlockchainAnchor, type VaultSnapshotItem } from './durability/blockchain-anchor.js';
+import { RobotContinuityKernel, type RobotActuatorCommand } from './robotics/continuity-kernel.js';
+import { StarlightQueen } from './orchestration/starlight-queen.js';
+import { MarketplaceCatalog } from './marketplace/catalog.js';
 
 // ── Interfaces ────────────────────────────────────────────────
 export interface McpToolAnnotations {
@@ -665,6 +670,136 @@ export class StarlightMcpServer {
       orchestrator.addLog(type, message);
       return { success: true, message, type };
     });
+
+    // 14. sis_durability_anchor
+    this.reg({
+      name: 'sis_durability_anchor',
+      title: 'Anchor vault entries to decentralized storage',
+      description: 'Anchor vault entries to decentralized blockchain storage (Arweave/IPFS) and generate a verified Merkle root proof-of-state receipt',
+      inputSchema: input({
+        items: {
+          type: 'array',
+          description: 'Array of memory entries to anchor to decentralized storage.',
+          items: {
+            type: 'object',
+            required: ['id', 'vault', 'content'],
+            properties: {
+              id: { type: 'string' },
+              vault: { type: 'string' },
+              content: { type: 'string' },
+              tags: { type: 'array', items: { type: 'string' } },
+            },
+          },
+        },
+        target: { type: 'string', enum: ['arweave', 'ipfs', 'filecoin', 'mock-substrate'], description: 'Target decentralized storage network (arweave, ipfs, filecoin, mock-substrate).' },
+      }, ['items']),
+      outputSchema: output({
+        anchorId: { type: 'string' },
+        merkleRoot: { type: 'string' },
+        target: { type: 'string' },
+        status: { type: 'string' },
+      }),
+      annotations: APPEND,
+    }, (p) => {
+      const rawItems = (p.items ?? []) as any[];
+      const items: VaultSnapshotItem[] = rawItems.map((item) => ({
+        id: String(item.id),
+        vault: item.vault as any,
+        content: String(item.content),
+        timestamp: new Date().toISOString(),
+        tags: Array.isArray(item.tags) ? item.tags.map(String) : [],
+      }));
+      const target = (p.target as any) ?? 'arweave';
+      const receipt = SovereignBlockchainAnchor.anchorSnapshot(items, target, 'blockchain_anchored');
+      return receipt as unknown as Record<string, unknown>;
+    });
+
+    // 15. sis_robot_continuity_dispatch
+    this.reg({
+      name: 'sis_robot_continuity_dispatch',
+      title: 'Dispatch robot actuator command',
+      description: 'Dispatch an actuator command to robot fleet (ROS2/Zenoh) with fail-closed safety checking against declared hazard zones',
+      inputSchema: input({
+        robotId: { type: 'string', minLength: 1, maxLength: 200, description: 'Unique identifier of the robot hardware or virtual node.' },
+        action: { type: 'string', enum: ['navigate', 'manipulate', 'capture_sensor', 'hold', 'emergency_stop'], description: 'Actuator action to execute (navigate, manipulate, capture_sensor, hold, emergency_stop).' },
+        targetCoordinates: {
+          type: 'object',
+          description: 'Target 3D spatial coordinates and reference frame.',
+          properties: {
+            x: { type: 'number' },
+            y: { type: 'number' },
+            z: { type: 'number' },
+            frameId: { type: 'string' },
+          },
+        },
+        safetyEnvelopeRadiusMeters: { type: 'number', description: 'Allowed safety bubble radius in meters for navigation bounds.' },
+      }, ['robotId', 'action']),
+      outputSchema: output({
+        success: { type: 'boolean' },
+        status: { type: 'string' },
+      }),
+      annotations: APPEND,
+    }, (p) => {
+      const kernel = new RobotContinuityKernel();
+      kernel.registerNode({
+        robotId: String(p.robotId),
+        name: `Node-${p.robotId}`,
+        model: 'generic-actuator',
+        middleware: 'zenoh',
+        status: 'idle',
+        safetyLocked: false,
+        lastHeartbeat: new Date().toISOString(),
+      });
+      const cmd: RobotActuatorCommand = {
+        commandId: `cmd_${Date.now()}`,
+        robotId: String(p.robotId),
+        action: p.action as any,
+        targetCoordinates: p.targetCoordinates as any,
+        safetyEnvelopeRadiusMeters: Number(p.safetyEnvelopeRadiusMeters ?? 1.0),
+        requiresHumanSupervision: false,
+        issuedAt: new Date().toISOString(),
+      };
+      return kernel.dispatchCommand(cmd) as unknown as Record<string, unknown>;
+    });
+
+    // 16. sis_queen_autonomic_cycle
+    this.reg({
+      name: 'sis_queen_autonomic_cycle',
+      title: 'Trigger Starlight Queen autonomic sweep',
+      description: 'Trigger Starlight Queen autonomic health sweep, maintenance checks, and memory consolidation loop across all active nodes',
+      inputSchema: input({
+        nodesCount: { type: 'number', description: 'Number of active swarm nodes to poll during the health sweep.' },
+        memoryEntries: { type: 'number', description: 'Number of candidate memory entries to evaluate for consolidation.' },
+      }),
+      outputSchema: output({
+        cycleId: { type: 'string' },
+        status: { type: 'string' },
+      }),
+      annotations: APPEND,
+    }, (p) => {
+      const queen = new StarlightQueen();
+      const nodesCount = Number(p.nodesCount ?? 1);
+      const memoryEntries = Number(p.memoryEntries ?? 10);
+      return queen.runAutonomicCycle(nodesCount, memoryEntries) as unknown as Record<string, unknown>;
+    });
+
+    // 17. sis_marketplace_list
+    this.reg({
+      name: 'sis_marketplace_list',
+      title: 'List Sovereign Marketplace catalog items',
+      description: 'List curated, certified, and community-published capability packs from the Starlight Sovereign Marketplace catalog',
+      inputSchema: input({
+        licenseTier: { type: 'string', enum: ['free', 'subscription', 'enterprise'], description: 'Filter catalog packs by license tier: free, subscription, or enterprise.' },
+      }),
+      outputSchema: output({
+        items: { type: 'array' },
+      }),
+      annotations: READ,
+    }, (p) => {
+      const catalog = new MarketplaceCatalog();
+      const items = catalog.listItems(p.licenseTier as any);
+      return { items } as Record<string, unknown>;
+    });
   }
 
   // ── JSON-RPC Dispatch ───────────────────────────────────────
@@ -696,11 +831,28 @@ export class StarlightMcpServer {
       const invalid = validateArgs(tool.definition.inputSchema, rawArgs);
       const args = rawArgs as Record<string, unknown>;
       if (invalid) return { jsonrpc: '2.0', id: rpcId, result: toolError(invalid, 'Fix the argument and call again; nothing was changed.') };
+      const start = Date.now();
       try {
         const result = tool.handler(args);
+        telemetry.traceMcpToolCall({
+          toolName: name,
+          args,
+          result,
+          durationMs: Date.now() - start,
+          success: true,
+          serverName: 'starlight-sis',
+        });
         const text = tool.legacyText ? result[tool.legacyText] : result;
         return { jsonrpc: '2.0', id: rpcId, result: { content: [{ type: 'text', text: JSON.stringify(text, null, 2) }], structuredContent: result } };
       } catch (err) {
+        telemetry.traceMcpToolCall({
+          toolName: name,
+          args,
+          error: err instanceof Error ? err.message : String(err),
+          durationMs: Date.now() - start,
+          success: false,
+          serverName: 'starlight-sis',
+        });
         const hint = err instanceof ToolError ? err.hint : 'Unexpected failure; the vault may be unreadable. Check the server log.';
         return { jsonrpc: '2.0', id: rpcId, result: toolError(err instanceof Error ? err.message : String(err), hint) };
       }

@@ -14,8 +14,8 @@ export class InMemoryLocalCoreProvider implements MemoryProvider {
   private readonly records = new Map<string, SISMemoryRecord>();
 
   async remember(record: SISMemoryRecord): Promise<SISMemoryRecord> {
-    this.records.set(JSON.stringify([record.tenant_id, record.memory_id]), record);
-    return record;
+    this.records.set(recordKey(record.tenant_id, record.memory_id), structuredClone(record));
+    return structuredClone(record);
   }
 
   async recall(request: RecallRequest): Promise<RecallResult[]> {
@@ -29,15 +29,20 @@ export class InMemoryLocalCoreProvider implements MemoryProvider {
       .map((record) => scoreRecord(record, queryTerms))
       .filter((result) => result.score > minScore)
       .sort((a, b) => b.score - a.score || b.record.importance - a.record.importance)
-      .slice(0, limit);
+      .slice(0, limit)
+      .map((result) => ({ ...result, record: structuredClone(result.record) }));
   }
 
   async forget(request: ForgetRequest): Promise<boolean> {
-    const key = JSON.stringify([request.tenant_id, request.memory_id]);
+    const key = recordKey(request.tenant_id, request.memory_id);
     const record = this.records.get(key);
     if (!record || record.tenant_id !== request.tenant_id) return false;
     return this.records.delete(key);
   }
+}
+
+function recordKey(tenantId: string, memoryId: string): string {
+  return JSON.stringify([tenantId, memoryId]);
 }
 
 function scoreRecord(record: SISMemoryRecord, queryTerms: string[]): RecallResult {
