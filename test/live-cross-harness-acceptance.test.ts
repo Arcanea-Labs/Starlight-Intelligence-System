@@ -403,19 +403,19 @@ test('Live recovery: Lock inspection, administrative release, and journal temp c
     assert.equal(typeof midCheck.meta?.token, 'string');
     assert.equal(midCheck.meta?.pid, process.pid);
 
-    // 3. Simulating dead process / orphaned lock breaking
-    // We break the lock administratively without calling normal release()
-    const broken = breakStaleLock(lockDir, midCheck.meta?.token);
-    assert.equal(broken, true);
+    // A fixture owned by this running process is live, not an orphan.
+    assert.ok(midCheck.meta);
+    assert.throws(() => breakStaleLock(lockDir,midCheck.meta!.token),/owner.*alive/i);
+    release();
     const postBreak = inspectLock(lockDir);
     assert.equal(postBreak.locked, false);
 
     // 4. Verify orphaned .tmp file cleanup in DurableJournal
     // Create an orphaned .tmp scratch file simulating a crash during atomic rename
-    const orphanedTmp = join(root, 'journal.jsonl.deadbeef-1234-5678.tmp');
+    const orphanedTmp = join(root, 'journal.jsonl.00000000-0000-4000-8000-000000000001.tmp');
     writeFileSync(orphanedTmp, '{"simulated":"crash-content"}\n');
 
-    // Instantiating DurableJournal should automatically garbage-collect orphaned .tmp files
+    // Cleanup occurs only after the journal update owns its lock.
     const journal = new DurableJournal(journalPath);
     await journal.update(frames => ({ frames: [...frames, { recovered: true }], result: 'ok' }));
 
@@ -430,4 +430,3 @@ test('Live recovery: Lock inspection, administrative release, and journal temp c
     rmSync(root, { recursive: true, force: true });
   }
 });
-

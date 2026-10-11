@@ -52,7 +52,6 @@ export class DurableJournal<T> {
   constructor(path: string) {
     this.path = resolve(path);
     mkdirSync(dirname(this.path), { recursive: true });
-    this.cleanOrphanedTempFiles();
   }
   private cleanOrphanedTempFiles(): void {
     try {
@@ -60,7 +59,8 @@ export class DurableJournal<T> {
       const base = basename(this.path);
       const prefix = `${base}.`;
       for (const entry of readdirSync(dir)) {
-        if (entry.startsWith(prefix) && entry.endsWith('.tmp')) {
+        const suffix = entry.slice(prefix.length);
+        if (entry.startsWith(prefix) && /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}\.tmp$/i.test(suffix)) {
           try { unlinkSync(join(dir, entry)); } catch {}
         }
       }
@@ -75,6 +75,8 @@ export class DurableJournal<T> {
   }
   async update<R>(fn: (frames: T[]) => { frames: T[]; result: R }): Promise<R> {
     return withLock(`${this.path}.lock`, () => {
+      // Constructors must not unlink an active writer's scratch file.
+      this.cleanOrphanedTempFiles();
       const before = this.read();
       const update = fn(before);
       if (update.frames === before) return update.result;

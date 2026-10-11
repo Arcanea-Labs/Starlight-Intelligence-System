@@ -95,7 +95,7 @@ cd Starlight-Intelligence-System && npm install && npm run build
 node dist/cli.js init --vaults
 ```
 
-> **Note:** npm currently serves v6.0.1 of `@arcanea/starlight-intelligence-system` — two major versions behind this repo. Use the git path above until v8.x is published.
+> npm serves `@arcanea/starlight-intelligence-system@8.5.1` as checked on 10 October 2026. This checkout uses Node 22 or 24. The modular packages are release candidates; the operational SDK keeps its own contracts and sanitizer until a separately versioned root migration is published.
 
 Then add to your MCP config (Claude Code, Cursor, Codex, Gemini, etc.), pointing at the `dist/mcp-server.js` inside your clone:
 
@@ -236,7 +236,7 @@ First, seed your vault directory so the system has somewhere to read from
 (a fresh install has no `~/.starlight/vaults` yet):
 
 ```bash
-# From a git clone of this repo (npm registry is at stale v6.0.1 — see note above):
+# From a git clone of this repo:
 node dist/cli.js init --vaults
 # → seeds the six JSONL vaults in ~/.starlight/vaults (welcome entry + public examples)
 ```
@@ -267,7 +267,7 @@ Restart Claude Code. You now have thirteen `sis_*` tools available in every sess
 **Option 2: As a library**
 
 ```bash
-npm install @arcanea/starlight-intelligence-system  # registry serves v6.0.1 — for v8.x, install from the git clone until republished
+npm install @arcanea/starlight-intelligence-system@8.5.1
 ```
 
 ```ts
@@ -319,8 +319,8 @@ Each vault is a JSONL file. Human-readable. Git-versionable. Greppable.
 - **Dreaming** — `src/dreaming.ts` processes session transcripts in the background.
 - **Six platform adapters** — Claude Code, Cursor, Codex, Gemini CLI, OpenCode, Antigravity share the same vaults.
 - **MCP v2** — `src/mcp-server.ts` ships thirteen tools over JSON-RPC 2.0 stdio.
-- **Multi-harness runtime bridge & context continuity** — `@arcanea/starlight-intelligence-system/runtime-bridge` and `src/context-bridge.ts` provide cross-agent bounded context capture, durable append-only journals with crash-resilient atomic commits, revision-scoped handoffs, cooperative PID/token locks, and typed review queues.
-- **Jev router policy primitive** — `src/jev-router.ts` provides public-only request filtering, advisory model constraints, and pre-transmission privacy guarantees.
+- **Multi-harness runtime bridge & context continuity** — `@arcanea/starlight-intelligence-system/runtime-bridge` and `src/context-bridge.ts` provide bounded context capture, atomic journal replacement, revision-scoped handoffs, cooperative PID/token locks, and typed review queues.
+- **Jev router policy primitive** — `src/runtime-bridge/jev-router.ts` prepares public-only requests from a host-supplied classification and model pool. Post-response checks cannot undo transmission or certify cost.
 
 ### MCP tools
 
@@ -354,13 +354,15 @@ Each vault is a JSONL file. Human-readable. Git-versionable. Greppable.
 
 ### Multi-harness runtime bridge & context continuity
 
-When multiple autonomous agents (Claude Code, Codex, Antigravity, OpenCode, Gemini CLI, Grok) collaborate on a shared codebase or hand off work across sessions, Starlight provides a resilient, zero-drift runtime substrate via `@arcanea/starlight-intelligence-system/runtime-bridge`:
+The `@arcanea/starlight-intelligence-system/runtime-bridge` export provides `ContextBridge` and `ReviewQueue` for bounded context capture and revision-bound handoffs. The host owns scheduling, provider admission and verification of the receiving checkout.
 
-- **Durable Journals & Atomic Replay**: `DurableJournal` records interaction events using append-only JSONL ledgers with monotonic sequence numbers, atomic rename file flushes, crash-orphaned temporary file garbage collection (`cleanOrphanedTempFiles()`), and replay deduplication.
-- **Revision-Scoped Checkpoint Handoffs**: Checkpoints capture Git repository root, commit SHA, dirty-tree status, branch metadata, and explicit artifact references. Resuming harnesses strictly verify repository origin and commit alignment to prevent ghost state.
-- **Cooperative Ownership Locks**: File-based gateway locks with monotonic process tokens and host PIDs. Blind age-based timeouts are eliminated; administrative inspection (`inspectLock`) and intentional recovery (`breakStaleLock`) allow operators to safely recover without risk of silent preemption.
-- **Durable Review Queue**: `ReviewQueue` coordinates asynchronous multi-agent peer reviews. Review requests declare target artifact revisions, required review aspects, and bound checker providers. Approvals and rejections are cryptographic-grade, replay-verifiable receipts.
-- **Jev Router Policy Layer**: `JevRouterPolicy` enforces pre-transmission privacy boundaries. Tasks containing private vaults or untrusted scopes refuse transport before external model endpoints can be contacted or billed.
+- Journal writes retain prior events and replace the JSONL file atomically under an owned lock. UUID scratch-file cleanup runs under that same lock; constructing a reader cannot delete a pending writer's file.
+- Handoffs select the latest checkpoint for the requested repository and revision. Captured records remain untrusted data; they do not authenticate a repository or establish the receiving checkout's state.
+- Cooperative local locks retain a random ownership token, host and PID. Recovery requires the inspected token and an exited local owner. Live, remote and unverifiable owners remain protected; age is never takeover authority.
+- Review requests bind the repository, revision, policy and distinct maker/checker providers. Receipts record reported commands, findings and limitations. They are not cryptographically signed or independent proof that those commands ran.
+- Jev requests require a host-approved public classification and current model pool. Returned metadata is an untrusted provider report; policy preparation alone does not prove data classification, routing or billed cost.
+
+The source recovery changes require a subsequent root release. Published root `8.5.1` is immutable; merging source does not update its registry archive.
 
 ### The 7 named agents (operational layer)
 
@@ -434,7 +436,7 @@ git clone https://github.com/frankxai/Starlight-Intelligence-System.git
 cd Starlight-Intelligence-System
 npm install
 npm run build       # tsc to dist/
-npm test            # 138+ comprehensive tests across vaults, gateway, and multi-harness bridge
+npm test            # operational, substrate and v0.1 evaluation suites
 npm run lint        # tsc --noEmit
 ```
 
@@ -480,3 +482,21 @@ Browse them: [docs/visuals/VISUALS.md](docs/visuals/VISUALS.md) · Motion experi
 For organizations and sovereign operators who want a full production intelligence estate (not just tools), Starlight provides a complete repeatable delivery system — Mind + Mesh + Steward — with high reuse across engagements.
 
 See `docs/delivery/estate-army-commissioning-workflow.md` and the `templates/estate-os/` profile for the current approach.
+
+### Local persistence and recovery limits
+
+Memory saves replay the committed JSONL log under its advisory lock before
+compaction, preserving other writers' records. Save replacements are written to
+exclusive sibling files, flushed and renamed. The legacy JSON snapshot is a
+derivative and is migrated only when no JSONL log exists, so an older snapshot
+cannot resurrect deleted entries. A malformed log stops save without overwriting
+its bytes. These are local cooperative filesystem safeguards, not distributed
+transaction or whole-filesystem power-loss guarantees.
+
+Administrative stale-lock recovery is serialized by a sibling `.recovery` guard.
+An interrupted recoverer leaves its guard and metadata for explicit inspection;
+a competing or unverified guard is preserved. Age never permits deletion. PID
+reuse, hostile filesystem mutation and other implementations ignoring the guard
+remain outside this cooperative protocol. The separate JSONL append lock also
+remains intact after an interrupted writer; automatic orphan-lock cleanup is not
+implemented here. Exact-revision review and hosted recovery checks remain required.
