@@ -49,7 +49,7 @@ def evaluate(repository, number, head, files, comments):
                 continue
             report = receipt['review']
             valid = (
-                receipt['repository'] == repository and receipt['pr'] == number
+                receipt['repository'] == repository and int(receipt['pr']) == number
                 and receipt['headSha'] == head
                 and receipt['maker'] in TRUSTED_MAKERS
                 and receipt['provider'] in REVIEW_PROVIDERS

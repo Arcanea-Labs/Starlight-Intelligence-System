@@ -18,7 +18,7 @@ The evaluator accepts LF or CRLF after the marker and preserves the report's
 UTF-8 bytes for SHA-256 verification. See the [evaluator](../tools/merge-review/merge_review_gate.py)
 and its [regression tests](../tools/merge-review/tests/test_merge_review_gate.py).
 
-The receipt contains `repository`, numeric `pr`, full `headSha`, `maker: "codex"` or `"jules"`,
+The receipt contains `repository`, numeric or string `pr`, full `headSha`, `maker: "codex"` or `"jules"`,
 `provider`, `verdict`, `blockingFindings`, all `reviewedFiles`, the complete
 `review`, its `reviewSha256`, the review packet's `packetSha256` and a nonempty
 `resolution`. Use `PASS` or `WARN` only after resolving every blocking finding;
