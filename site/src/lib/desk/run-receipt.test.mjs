@@ -100,3 +100,69 @@ test("receiptProblems refuses evidence entry with malformed sha256", () => {
   const problems = receiptProblems(bad);
   assert.ok(problems.includes("evidence https://example.org.sha256 is not a sha256"), problems.join("; "));
 });
+
+test("receiptProblems refuses human decision without proof", () => {
+  const bad = {
+    ...receipt(),
+    decisions: [{ gate: "spend", decidedBy: "human", actorId: "frank", outcome: "approved", at: "2026-09-21T09:59:00.000Z" }],
+  };
+  const problems = receiptProblems(bad);
+  assert.ok(
+    problems.includes("decision spend decidedBy human has no proof (signature, mandateId, approvalRef, evidenceRef, or proof)"),
+    problems.join("; "),
+  );
+});
+
+test("receiptProblems accepts human decision with proof", () => {
+  const ok = {
+    ...receipt(),
+    decisions: [
+      {
+        gate: "spend",
+        decidedBy: "human",
+        actorId: "frank",
+        outcome: "approved",
+        approvalRef: "mandate:frank:spend",
+        at: "2026-09-21T09:59:00.000Z",
+      },
+    ],
+  };
+  assert.deepEqual(receiptProblems(ok), []);
+
+  // Accepts evidenceRef when matched in evidence array
+  const okEvidenceRef = {
+    ...receipt(),
+    decisions: [
+      {
+        gate: "spend",
+        decidedBy: "human",
+        actorId: "frank",
+        outcome: "approved",
+        evidenceRef: "memory/_audit/x.jsonl",
+        at: "2026-09-21T09:59:00.000Z",
+      },
+    ],
+  };
+  assert.deepEqual(receiptProblems(okEvidenceRef), []);
+});
+
+test("receiptProblems refuses human decision with invalid structured proof", () => {
+  const shortSig = {
+    ...receipt(),
+    decisions: [{ gate: "spend", decidedBy: "human", actorId: "frank", outcome: "approved", signature: "short", at: "2026-09-21T09:59:00.000Z" }],
+  };
+  assert.ok(receiptProblems(shortSig).some((p) => p.includes("must be at least 32 characters")));
+
+  const badRef = {
+    ...receipt(),
+    decisions: [{ gate: "spend", decidedBy: "human", actorId: "frank", outcome: "approved", approvalRef: "unresolvable", at: "2026-09-21T09:59:00.000Z" }],
+  };
+  assert.ok(receiptProblems(badRef).some((p) => p.includes("not a valid URI reference")));
+
+  const missingEvRef = {
+    ...receipt(),
+    decisions: [{ gate: "spend", decidedBy: "human", actorId: "frank", outcome: "approved", evidenceRef: "does_not_exist", at: "2026-09-21T09:59:00.000Z" }],
+  };
+  assert.ok(receiptProblems(missingEvRef).some((p) => p.includes("does not match any evidence.ref")));
+});
+
