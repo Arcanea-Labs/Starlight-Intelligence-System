@@ -263,7 +263,7 @@
     "starlight-genius-mcp": "dist/mcp-genius.js"
   },
   "dependencies": {
-    "better-sqlite3": "12.8.0",
+    "better-sqlite3": "13.0.3",
     "langfuse": "^3.39.2"
   },
   "packageManager": "pnpm@11.5.0"
